@@ -296,4 +296,4 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       </div>
     </div>
   )
-} 
+}
