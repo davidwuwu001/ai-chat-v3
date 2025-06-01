@@ -17,80 +17,102 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [loadingText, setLoadingText] = useState('')
 
-  const { signIn, signUp, resetPassword } = useAuth()
+  const { signUp, signIn, resetPassword } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setMessage(null)
     setLoading(true)
-
-    // 表单验证
-    if (!email || !password) {
-      setError('请填写所有必填字段')
-      setLoading(false)
-      return
-    }
-
-    if (isSignUp && !username.trim()) {
-      setError('请输入用户名')
-      setLoading(false)
-      return
-    }
-
-    if (isSignUp && password !== confirmPassword) {
-      setError('两次输入的密码不一致')
-      setLoading(false)
-      return
-    }
-
-    if (password.length < 6) {
-      setError('密码至少需要6个字符')
-      setLoading(false)
-      return
-    }
-
-    // 用户名长度验证
-    if (isSignUp && username.trim().length < 2) {
-      setError('用户名至少需要2个字符')
-      setLoading(false)
-      return
-    }
+    setLoadingProgress(0)
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password, username.trim())
+        if (password !== confirmPassword) {
+          setError('两次输入的密码不一致')
+          return
+        }
+
+        if (username.length < 2 || username.length > 20) {
+          setError('用户名长度必须在2-20个字符之间')
+          return
+        }
+
+        setLoadingText('正在创建账户...')
+        setLoadingProgress(30)
+        
+        const { error } = await signUp(email, password, username)
+        
+        setLoadingProgress(80)
+        
         if (error) {
-          if (error.message.includes('already registered')) {
-            setError('该邮箱已经注册，请直接登录')
+          if (error.message.includes('User already registered')) {
+            setError('该邮箱已被注册，请尝试登录或使用其他邮箱')
+          } else if (error.message.includes('Password should be at least')) {
+            setError('密码至少需要6位字符')
+          } else if (error.message.includes('timeout') || error.message.includes('network')) {
+            setError('网络连接超时，请检查网络后重试。如果问题持续，可能是服务器响应较慢。')
           } else {
             setError(error.message || '注册失败')
           }
         } else {
-          setMessage('注册成功！请检查邮箱中的确认链接')
-          // 清空表单
-          setEmail('')
-          setPassword('')
-          setConfirmPassword('')
-          setUsername('')
+          setLoadingProgress(100)
+          setMessage('注册成功！请检查邮箱中的验证链接（可能在垃圾邮件中）')
+          setTimeout(() => {
+            onClose()
+          }, 2000)
         }
       } else {
+        setLoadingText('正在验证身份...')
+        setLoadingProgress(20)
+        
+        const progressInterval = setInterval(() => {
+          setLoadingProgress(prev => {
+            if (prev < 70) return prev + 10
+            return prev
+          })
+        }, 1000)
+
+        const startTime = Date.now()
         const { error } = await signIn(email, password)
+        const endTime = Date.now()
+        const duration = endTime - startTime
+        
+        clearInterval(progressInterval)
+        setLoadingProgress(90)
+        
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            setError('邮箱或密码错误')
+            setError('邮箱或密码错误，请检查后重试')
+          } else if (error.message.includes('timeout') || error.message.includes('network')) {
+            setError(`网络连接超时（${Math.round(duration/1000)}秒）。这可能是因为：\n1. 网络连接较慢\n2. 服务器地域较远\n3. 防火墙阻止连接\n\n请稍后重试或检查网络设置。`)
+          } else if (error.message.includes('Too many requests')) {
+            setError('请求过于频繁，请稍后再试')
           } else {
             setError(error.message || '登录失败')
           }
         } else {
-          onClose() // 登录成功后关闭模态框
+          setLoadingProgress(100)
+          setLoadingText('登录成功！')
+          setTimeout(() => {
+            onClose()
+          }, 500)
         }
       }
-    } catch (err) {
-      setError('网络错误，请稍后重试')
+    } catch (err: any) {
+      console.error('认证错误:', err)
+      if (err.message.includes('timeout')) {
+        setError('请求超时，服务器响应较慢。请检查网络连接并重试。')
+      } else {
+        setError('网络错误，请检查网络连接后重试')
+      }
     } finally {
       setLoading(false)
+      setLoadingProgress(0)
+      setLoadingText('')
     }
   }
 
@@ -101,13 +123,25 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
 
     setLoading(true)
-    const { error } = await resetPassword(email)
-    setLoading(false)
-
-    if (error) {
-      setError(error.message || '重置密码失败')
-    } else {
-      setMessage('重置密码链接已发送到您的邮箱')
+    setLoadingText('正在发送重置链接...')
+    
+    try {
+      const { error } = await resetPassword(email)
+      
+      if (error) {
+        if (error.message.includes('timeout') || error.message.includes('network')) {
+          setError('网络连接超时，请稍后重试')
+        } else {
+          setError(error.message || '重置密码失败')
+        }
+      } else {
+        setMessage('重置密码链接已发送到您的邮箱，请检查收件箱（可能在垃圾邮件中）')
+      }
+    } catch (err) {
+      setError('网络错误，请稍后重试')
+    } finally {
+      setLoading(false)
+      setLoadingText('')
     }
   }
 
@@ -122,10 +156,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg transition-colors"
+          disabled={loading}
+          className="absolute top-4 right-4 p-2 rounded-lg transition-colors disabled:opacity-30"
           style={{ color: 'var(--color-text)', opacity: 0.7 }}
-          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          onMouseEnter={(e) => !loading && (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => !loading && (e.currentTarget.style.opacity = '0.7')}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -150,12 +185,32 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         {/* 错误/成功消息 */}
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600 whitespace-pre-line">{error}</p>
           </div>
         )}
         {message && (
           <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200">
             <p className="text-sm text-green-600">{message}</p>
+          </div>
+        )}
+
+        {/* 加载进度条 */}
+        {loading && (
+          <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="flex items-center space-x-3">
+              <svg className="w-4 h-4 animate-spin text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm text-blue-600 mb-1">{loadingText}</p>
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${loadingProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
