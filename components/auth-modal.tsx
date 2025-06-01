@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../lib/auth-context'
 
 interface AuthModalProps {
@@ -19,8 +19,70 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingText, setLoadingText] = useState('')
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const [canCancel, setCanCancel] = useState(false)
+  const [networkStatus, setNetworkStatus] = useState<'checking' | 'good' | 'slow' | 'poor'>('good')
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const { signUp, signIn, resetPassword } = useAuth()
+
+  useEffect(() => {
+    const checkNetworkSpeed = async () => {
+      if (!loading) return
+      
+      const start = Date.now()
+      try {
+        await fetch('https://httpbin.org/delay/1', { method: 'HEAD' })
+        const duration = Date.now() - start
+        
+        if (duration < 2000) setNetworkStatus('good')
+        else if (duration < 5000) setNetworkStatus('slow')
+        else setNetworkStatus('poor')
+      } catch {
+        setNetworkStatus('poor')
+      }
+    }
+
+    if (loading) {
+      setNetworkStatus('checking')
+      checkNetworkSpeed()
+    }
+  }, [loading])
+
+  const cleanup = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+      setTimeoutId(null)
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setCanCancel(false)
+    setLoadingProgress(0)
+    setLoadingText('')
+    setNetworkStatus('good')
+  }
+
+  const handleCancel = () => {
+    cleanup()
+    setLoading(false)
+    setError('操作已取消')
+  }
+
+  const createSmartTimeout = (operation: string, baseTimeout: number = 20000) => {
+    const timeout = setTimeout(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      setError(`${operation}超时。\n\n可能的原因：\n• 网络连接较慢\n• 服务器响应延迟\n• 防火墙阻止连接\n\n建议：\n• 检查网络连接\n• 稍后重试\n• 尝试切换网络环境`)
+      setLoading(false)
+      cleanup()
+    }, baseTimeout)
+    
+    setTimeoutId(timeout)
+    return timeout
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,6 +90,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setMessage(null)
     setLoading(true)
     setLoadingProgress(0)
+    setCanCancel(true)
+
+    abortControllerRef.current = new AbortController()
 
     try {
       if (isSignUp) {
@@ -42,8 +107,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         }
 
         setLoadingText('正在创建账户...')
-        setLoadingProgress(30)
+        setLoadingProgress(20)
         
+        createSmartTimeout('注册', 25000)
+
         const { error } = await signUp(email, password, username)
         
         setLoadingProgress(80)
@@ -53,30 +120,35 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             setError('该邮箱已被注册，请尝试登录或使用其他邮箱')
           } else if (error.message.includes('Password should be at least')) {
             setError('密码至少需要6位字符')
-          } else if (error.message.includes('timeout') || error.message.includes('network')) {
-            setError('网络连接超时，请检查网络后重试。如果问题持续，可能是服务器响应较慢。')
+          } else if (error.message.includes('timeout') || error.message.includes('network') || error.message.includes('AbortError')) {
+            setError('网络连接超时。\n\n解决建议：\n• 检查网络连接\n• 尝试关闭VPN后重试\n• 稍后重新尝试\n• 确保防火墙允许连接')
           } else {
             setError(error.message || '注册失败')
           }
         } else {
           setLoadingProgress(100)
+          setLoadingText('注册成功！')
           setMessage('注册成功！请检查邮箱中的验证链接（可能在垃圾邮件中）')
           setTimeout(() => {
             onClose()
           }, 2000)
         }
       } else {
-        setLoadingText('正在验证身份...')
-        setLoadingProgress(20)
+        setLoadingText('正在连接服务器...')
+        setLoadingProgress(10)
         
         const progressInterval = setInterval(() => {
           setLoadingProgress(prev => {
-            if (prev < 70) return prev + 10
+            if (prev < 60) return prev + 8
             return prev
           })
         }, 1000)
 
+        createSmartTimeout('登录', 30000)
+
         const startTime = Date.now()
+        setLoadingText('正在验证身份...')
+        
         const { error } = await signIn(email, password)
         const endTime = Date.now()
         const duration = endTime - startTime
@@ -87,12 +159,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             setError('邮箱或密码错误，请检查后重试')
-          } else if (error.message.includes('timeout') || error.message.includes('network')) {
-            setError(`网络连接超时（${Math.round(duration/1000)}秒）。这可能是因为：\n1. 网络连接较慢\n2. 服务器地域较远\n3. 防火墙阻止连接\n\n请稍后重试或检查网络设置。`)
+          } else if (error.message.includes('timeout') || error.message.includes('network') || error.message.includes('AbortError')) {
+            setError(`登录超时（用时${Math.round(duration/1000)}秒）\n\n可能的原因：\n• 网络连接较慢\n• Supabase服务器地域较远\n• 防火墙或网络限制\n\n解决方案：\n• 检查网络连接\n• 尝试关闭VPN\n• 清除浏览器缓存\n• 稍后重试`)
           } else if (error.message.includes('Too many requests')) {
-            setError('请求过于频繁，请稍后再试')
+            setError('请求过于频繁，请稍后再试（建议等待1-2分钟）')
+          } else if (error.message.includes('AuthSessionMissingError')) {
+            setError('会话错误，请刷新页面后重试')
           } else {
-            setError(error.message || '登录失败')
+            setError(`登录失败：${error.message}\n\n如果问题持续，请尝试：\n• 刷新页面\n• 清除浏览器缓存\n• 检查网络设置`)
           }
         } else {
           setLoadingProgress(100)
@@ -104,15 +178,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       }
     } catch (err: any) {
       console.error('认证错误:', err)
-      if (err.message.includes('timeout')) {
-        setError('请求超时，服务器响应较慢。请检查网络连接并重试。')
+      if (err.name === 'AbortError') {
+        setError('操作被取消')
+      } else if (err.message.includes('timeout')) {
+        setError('请求超时，服务器响应较慢。\n\n建议：\n• 检查网络连接\n• 稍后重试\n• 尝试切换网络环境')
       } else {
-        setError('网络错误，请检查网络连接后重试')
+        setError(`网络错误：${err.message}\n\n请检查网络连接后重试`)
       }
     } finally {
       setLoading(false)
-      setLoadingProgress(0)
-      setLoadingText('')
+      cleanup()
     }
   }
 
@@ -153,7 +228,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         backgroundColor: 'var(--color-surface)',
         border: '1px solid rgba(0, 0, 0, 0.1)'
       }}>
-        {/* 关闭按钮 */}
         <button
           onClick={onClose}
           disabled={loading}
@@ -167,7 +241,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </svg>
         </button>
 
-        {/* 标题 */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,7 +255,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </p>
         </div>
 
-        {/* 错误/成功消息 */}
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
             <p className="text-sm text-red-600 whitespace-pre-line">{error}</p>
@@ -194,29 +266,74 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </div>
         )}
 
-        {/* 加载进度条 */}
         {loading && (
-          <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-            <div className="flex items-center space-x-3">
-              <svg className="w-4 h-4 animate-spin text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="flex items-start space-x-3">
+              <svg className="w-5 h-5 animate-spin text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               <div className="flex-1">
-                <p className="text-sm text-blue-600 mb-1">{loadingText}</p>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${loadingProgress}%` }}
-                  />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-blue-600 font-medium">{loadingText}</p>
+                  {canCancel && (
+                    <button
+                      onClick={handleCancel}
+                      className="text-xs text-blue-500 hover:text-blue-700 underline"
+                    >
+                      取消
+                    </button>
+                  )}
                 </div>
+                
+                {/* 进度条 */}
+                <div className="w-full bg-blue-200 rounded-full h-2.5 mb-3">
+                  <div 
+                    className="bg-blue-500 h-2.5 rounded-full transition-all duration-500 relative overflow-hidden"
+                    style={{ width: `${loadingProgress}%` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
+                  </div>
+                </div>
+                
+                {/* 网络状态指示器 */}
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      networkStatus === 'good' ? 'bg-green-500' :
+                      networkStatus === 'slow' ? 'bg-yellow-500' :
+                      networkStatus === 'poor' ? 'bg-red-500' :
+                      'bg-gray-400 animate-pulse'
+                    }`}></div>
+                    <span className="text-gray-600">
+                      网络: {
+                        networkStatus === 'checking' ? '检测中...' :
+                        networkStatus === 'good' ? '良好' :
+                        networkStatus === 'slow' ? '较慢' :
+                        networkStatus === 'poor' ? '不稳定' : '未知'
+                      }
+                    </span>
+                  </div>
+                  <span className="text-gray-500">{loadingProgress}%</span>
+                </div>
+                
+                {/* 耐心提示 */}
+                {loadingProgress > 30 && networkStatus === 'slow' && (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                    💡 网络较慢，请耐心等待。首次登录可能需要更长时间。
+                  </div>
+                )}
+                
+                {loadingProgress > 50 && networkStatus === 'poor' && (
+                  <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                    ⚠️ 网络不稳定，建议检查网络连接或稍后重试。
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* 表单 */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 注册时显示用户名字段 */}
           {isSignUp && (
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
@@ -321,7 +438,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </button>
         </form>
 
-        {/* 底部链接 */}
         <div className="mt-6 text-center space-y-3">
           <button
             type="button"
