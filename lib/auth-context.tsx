@@ -60,35 +60,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true)
       
-      // 添加超时机制
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
-      
-      await auth.signOut()
-      
-      clearTimeout(timeoutId)
-      
-      // 强制清除用户状态，即使API调用失败
+      // 立即清除本地状态，不等待网络请求
       setUser(null)
       
-      // 清除本地存储的认证信息
-      localStorage.removeItem('supabase.auth.token')
+      // 清除所有可能的本地存储
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+      } catch (e) {
+        console.warn('清除本地存储时出错:', e)
+      }
       
-      console.log('用户已成功退出登录')
+      // 尝试调用远程登出，但不依赖它
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000) // 缩短到3秒
+      
+      try {
+        await auth.signOut()
+        clearTimeout(timeoutId)
+        console.log('远程登出成功')
+      } catch (authError) {
+        console.warn('远程登出失败，但本地已清除:', authError)
+      }
       
     } catch (error: any) {
       console.error('退出登录时出错:', error)
-      
-      // 即使发生错误，也要清除用户状态
+      // 确保无论如何都清除用户状态
       setUser(null)
-      localStorage.removeItem('supabase.auth.token')
-      
-      // 如果是超时错误，给出特定提示
-      if (error.name === 'AbortError') {
-        console.warn('退出登录超时，但已强制退出')
-      }
     } finally {
       setLoading(false)
+      
+      // 强制刷新页面作为最终兜底
+      setTimeout(() => {
+        if (window.location.pathname !== '/') {
+          window.location.href = '/'
+        } else {
+          window.location.reload()
+        }
+      }, 100)
     }
   }
 

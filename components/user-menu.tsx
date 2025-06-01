@@ -41,14 +41,18 @@ export function UserMenu() {
       setIsSigningOut(true)
       setIsOpen(false) // 先关闭菜单
       
+      // 立即给用户反馈
+      console.log('正在退出登录...')
+      
       await signOut()
       
-      // 给用户一个成功反馈
+      // 成功后的反馈（实际上页面会刷新，但这是备用）
       console.log('已成功退出登录')
     } catch (error) {
       console.error('退出登录失败:', error)
-      // 即使失败也关闭菜单，因为auth-context会强制清除状态
+      // 即使失败也不用担心，auth-context会强制清除并刷新页面
     } finally {
+      // 通常不会执行到这里，因为页面会刷新
       setIsSigningOut(false)
     }
   }
