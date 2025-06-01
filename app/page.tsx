@@ -7,6 +7,8 @@ import { ModelSelector } from '../components/model-selector'
 import { MarkdownRenderer } from '../components/markdown-renderer'
 import { AuthModal } from '../components/auth-modal'
 import { UserMenu } from '../components/user-menu'
+import { UserSettingsModal } from '../components/user-settings-modal'
+import { MessageActions } from '../components/message-actions'
 import { clientConfig } from '../lib/config'
 
 // 定义消息类型
@@ -649,6 +651,16 @@ export default function Home() {
                           </button>
                         )}
                       </div>
+                      
+                      {/* AI回复消息的操作按钮 */}
+                      {!message.isUser && !message.error && (
+                        <MessageActions
+                          messageText={message.text}
+                          messageId={message.id}
+                          timestamp={message.timestamp}
+                          model={message.model}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
