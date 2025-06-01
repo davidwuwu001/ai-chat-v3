@@ -6,8 +6,8 @@
 
 const https = require('https');
 
-// Vercel网站URL - 请替换为你的实际域名
-const VERCEL_URL = 'https://test-eight-inky-80.vercel.app';
+// Vercel网站URL - 更新为正确的域名
+const VERCEL_URL = 'https://www.dawuls.com';
 
 console.log('🔍 检查Vercel部署状态...\n');
 

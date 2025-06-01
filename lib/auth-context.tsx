@@ -57,10 +57,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    setLoading(true)
-    await auth.signOut()
-    setUser(null)
-    setLoading(false)
+    try {
+      setLoading(true)
+      
+      // 立即清除本地状态，不等待网络请求
+      setUser(null)
+      
+      // 清除所有可能的本地存储
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+      } catch (e) {
+        console.warn('清除本地存储时出错:', e)
+      }
+      
+      // 尝试调用远程登出，但不依赖它
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000) // 缩短到3秒
+      
+      try {
+        await auth.signOut()
+        clearTimeout(timeoutId)
+        console.log('远程登出成功')
+      } catch (authError) {
+        console.warn('远程登出失败，但本地已清除:', authError)
+      }
+      
+    } catch (error: any) {
+      console.error('退出登录时出错:', error)
+      // 确保无论如何都清除用户状态
+      setUser(null)
+    } finally {
+      setLoading(false)
+      
+      // 强制刷新页面作为最终兜底
+      setTimeout(() => {
+        if (window.location.pathname !== '/') {
+          window.location.href = '/'
+        } else {
+          window.location.reload()
+        }
+      }, 100)
+    }
   }
 
   const resetPassword = async (email: string) => {

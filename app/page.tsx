@@ -584,15 +584,17 @@ export default function Home() {
           </div>
         ) : (
           // 聊天消息区域
-          <div className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto px-4 py-6" style={{ 
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)' 
+          }}>
+            <div className="space-y-6 max-w-4xl mx-auto">
               {messages.map((message, index) => (
                 <div
                   key={message.id}
                   className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} message-enter`}
                   style={{animationDelay: `${index * 0.1}s`}}
                 >
-                  <div className={`flex space-x-3 max-w-3xl ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  <div className={`flex space-x-3 w-full max-w-[90%] md:max-w-3xl ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
                     {/* 头像 */}
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${
                       message.isUser 
@@ -607,7 +609,7 @@ export default function Home() {
                     </div>
                     
                     {/* 消息内容 */}
-                    <div className={`rounded-2xl px-5 py-4 shadow-sm ${
+                    <div className={`flex-1 rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm ${
                       message.isUser
                         ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
                         : message.error
@@ -668,12 +670,12 @@ export default function Home() {
               
               {/* 正在输入指示器 */}
               {isTyping && (
-                <div className="flex justify-start message-enter">
-                  <div className="flex space-x-3 max-w-3xl">
+                <div className="flex justify-start message-enter max-w-4xl mx-auto">
+                  <div className="flex space-x-3 w-full max-w-[90%] md:max-w-3xl">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 shadow-lg">
                       <span className="text-white text-sm font-medium">🤖</span>
                     </div>
-                    <div className="rounded-2xl px-5 py-4 border backdrop-blur-sm" style={{
+                    <div className="flex-1 rounded-2xl px-4 md:px-5 py-3 md:py-4 border backdrop-blur-sm" style={{
                       backgroundColor: 'rgba(255, 255, 255, 0.8)',
                       borderColor: 'rgba(0, 0, 0, 0.1)'
                     }}>
@@ -691,10 +693,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* 底部输入区域 */}
-        <div className="border-t backdrop-blur-xl p-4" style={{
+        {/* 底部输入区域 - 固定位置 */}
+        <div className="border-t backdrop-blur-xl p-4 sticky bottom-0" style={{
           borderColor: 'rgba(0, 0, 0, 0.1)',
-          backgroundColor: 'rgba(255, 255, 255, 0.7)'
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          paddingBottom: `calc(1rem + env(safe-area-inset-bottom, 0px))`
         }}>
           <div className="flex space-x-4">
             <div className="flex-1 relative">

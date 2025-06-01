@@ -5,9 +5,10 @@ import { useAuth } from '../lib/auth-context'
 import { UserSettingsModal } from './user-settings-modal'
 
 export function UserMenu() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   if (!user) return null
 
@@ -36,8 +37,24 @@ export function UserMenu() {
   }
 
   const handleSignOut = async () => {
-    await signOut()
-    setIsOpen(false)
+    try {
+      setIsSigningOut(true)
+      setIsOpen(false) // 先关闭菜单
+      
+      // 立即给用户反馈
+      console.log('正在退出登录...')
+      
+      await signOut()
+      
+      // 成功后的反馈（实际上页面会刷新，但这是备用）
+      console.log('已成功退出登录')
+    } catch (error) {
+      console.error('退出登录失败:', error)
+      // 即使失败也不用担心，auth-context会强制清除并刷新页面
+    } finally {
+      // 通常不会执行到这里，因为页面会刷新
+      setIsSigningOut(false)
+    }
   }
 
   const openSettings = () => {
@@ -129,18 +146,27 @@ export function UserMenu() {
 
                 <button
                   onClick={handleSignOut}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors text-red-600"
+                  disabled={isSigningOut || loading}
+                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors text-red-600 disabled:opacity-50"
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'
+                    if (!isSigningOut && !loading) {
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'
+                    }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = 'transparent'
                   }}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span>退出登录</span>
+                  {isSigningOut || loading ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  )}
+                  <span>{isSigningOut || loading ? '正在退出...' : '退出登录'}</span>
                 </button>
               </div>
             </div>
