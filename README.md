@@ -248,3 +248,80 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## 🚀 部署到 Vercel
+
+### 环境变量配置
+
+在 Vercel 部署前，需要在 Vercel Dashboard 中配置以下环境变量：
+
+#### 1. 登录 Vercel Dashboard
+- 访问 https://vercel.com/dashboard
+- 找到你的项目并点击进入
+
+#### 2. 配置环境变量
+进入项目 Settings → Environment Variables，添加以下变量：
+
+```bash
+# Supabase 数据库配置
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# AI API 配置
+AIHUBMIX_API_KEY=your_aihubmix_api_key
+```
+
+#### 3. 获取 Supabase 配置
+1. 访问 https://supabase.com/dashboard
+2. 选择你的项目
+3. 在 Settings → API 中找到：
+   - Project URL (`NEXT_PUBLIC_SUPABASE_URL`)
+   - anon public key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+
+#### 4. 获取 AI API 密钥
+1. 访问 https://aihubmix.com
+2. 注册/登录账户
+3. 在 API 设置中获取你的 API 密钥 (`AIHUBMIX_API_KEY`)
+
+#### 5. 重新部署
+配置完环境变量后，在 Vercel Dashboard 中触发重新部署：
+- 点击 "Deployments" 选项卡
+- 点击最新部署旁的 "..." 按钮
+- 选择 "Redeploy"
+
+### 本地开发环境变量
+
+创建 `.env.local` 文件（不要提交到 Git）：
+
+```bash
+# .env.local
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+AIHUBMIX_API_KEY=your_aihubmix_api_key
+```
+
+### 常见部署问题
+
+#### 问题：`supabaseUrl is required`
+**解决方案**：确保在 Vercel 中正确配置了 `NEXT_PUBLIC_SUPABASE_URL` 环境变量
+
+#### 问题：API 请求失败
+**解决方案**：检查 `AIHUBMIX_API_KEY` 是否正确配置
+
+#### 问题：认证不工作
+**解决方案**：确认 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 配置正确
+
+### 部署成功后
+- 访问你的 Vercel 域名
+- 注册一个新账户测试功能
+- 检查 AI 对话是否正常工作
+
+---
+
+## 📞 技术支持
+
+如果遇到问题，请检查：
+1. 环境变量是否正确配置
+2. Supabase 项目是否正常运行
+3. AI API 额度是否充足
+4. 查看 Vercel 构建日志获取详细错误信息
