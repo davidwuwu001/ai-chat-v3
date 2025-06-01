@@ -57,10 +57,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    setLoading(true)
-    await auth.signOut()
-    setUser(null)
-    setLoading(false)
+    try {
+      setLoading(true)
+      
+      // 添加超时机制
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
+      
+      await auth.signOut()
+      
+      clearTimeout(timeoutId)
+      
+      // 强制清除用户状态，即使API调用失败
+      setUser(null)
+      
+      // 清除本地存储的认证信息
+      localStorage.removeItem('supabase.auth.token')
+      
+      console.log('用户已成功退出登录')
+      
+    } catch (error: any) {
+      console.error('退出登录时出错:', error)
+      
+      // 即使发生错误，也要清除用户状态
+      setUser(null)
+      localStorage.removeItem('supabase.auth.token')
+      
+      // 如果是超时错误，给出特定提示
+      if (error.name === 'AbortError') {
+        console.warn('退出登录超时，但已强制退出')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const resetPassword = async (email: string) => {
@@ -103,4 +132,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
-} 
+}
