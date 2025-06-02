@@ -4,88 +4,12 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
+import { HtmlPreview } from './html-preview'
 import 'highlight.js/styles/github.css'
 
 interface MarkdownRendererProps {
   content: string
   className?: string
-}
-
-// HTML预览模态框组件
-function HtmlPreviewModal({ html, isOpen, onClose }: { html: string; isOpen: boolean; onClose: () => void }) {
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" style={{
-        backgroundColor: 'var(--color-surface)',
-        border: '1px solid rgba(0, 0, 0, 0.1)'
-      }}>
-        <div className="flex items-center justify-between p-4 border-b" style={{
-          borderColor: 'rgba(0, 0, 0, 0.1)'
-        }}>
-          <h3 className="text-lg font-medium" style={{ color: 'var(--color-text)' }}>
-            HTML 预览
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: 'var(--color-text)', opacity: 0.7 }}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        
-        <div className="flex flex-col h-full max-h-[calc(90vh-80px)]">
-          {/* 预览区域 */}
-          <div className="flex-1 overflow-auto p-4 border-b" style={{
-            borderColor: 'rgba(0, 0, 0, 0.1)',
-            backgroundColor: 'white'
-          }}>
-            <iframe
-              srcDoc={`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <meta charset="UTF-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <title>HTML预览</title>
-                  <style>
-                    body { 
-                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                      margin: 16px;
-                      line-height: 1.5;
-                    }
-                    * { box-sizing: border-box; }
-                  </style>
-                </head>
-                <body>
-                  ${html}
-                </body>
-                </html>
-              `}
-              className="w-full h-64 border-0 rounded-lg"
-              title="HTML预览"
-            />
-          </div>
-          
-          {/* 代码显示区域 */}
-          <div className="h-48 overflow-auto p-4" style={{
-            backgroundColor: 'var(--color-surface)',
-            fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace'
-          }}>
-            <pre className="text-sm" style={{ color: 'var(--color-text)' }}>
-              <code>{html}</code>
-            </pre>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
@@ -94,25 +18,68 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
 
   const handleCopyCode = async (code: string) => {
     try {
-      await navigator.clipboard.writeText(code)
-      // 可以添加一个简单的反馈
+      // 确保代码是字符串类型并清理
+      let textToCopy = ''
+      if (typeof code === 'string') {
+        textToCopy = code.trim()
+      } else {
+        textToCopy = String(code).trim()
+      }
+      
+      // 调试信息：显示要复制的内容
+      console.log('准备复制的代码长度:', textToCopy.length)
+      console.log('复制内容预览:', textToCopy.substring(0, 100) + (textToCopy.length > 100 ? '...' : ''))
+      
+      // 使用现代的Clipboard API
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy)
+      } else {
+        // 备用方案：使用传统的execCommand
+        const textArea = document.createElement('textarea')
+        textArea.value = textToCopy
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      
+      // 视觉反馈
+      const button = document.activeElement as HTMLButtonElement
+      if (button && (button.innerHTML === '📋' || button.innerHTML.includes('📋'))) {
+        const originalText = button.innerHTML
+        button.innerHTML = '✅ 已复制'
+        button.style.backgroundColor = '#10b981'
+        button.style.color = 'white'
+        button.style.transform = 'scale(1.05)'
+        setTimeout(() => {
+          button.innerHTML = originalText
+          button.style.backgroundColor = ''
+          button.style.color = ''
+          button.style.transform = ''
+        }, 2000)
+      }
+      
+      console.log('✅ 代码复制成功！长度:', textToCopy.length, '字符')
+    } catch (error) {
+      console.error('❌ 复制失败:', error)
+      
+      // 显示错误反馈
       const button = document.activeElement as HTMLButtonElement
       if (button) {
         const originalText = button.innerHTML
-        button.innerHTML = '✅'
+        button.innerHTML = '❌ 复制失败'
+        button.style.backgroundColor = '#ef4444'
+        button.style.color = 'white'
         setTimeout(() => {
           button.innerHTML = originalText
-        }, 1000)
+          button.style.backgroundColor = ''
+          button.style.color = ''
+        }, 2000)
       }
-    } catch (error) {
-      console.error('复制失败:', error)
-      // 备用方案
-      const textArea = document.createElement('textarea')
-      textArea.value = code
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
     }
   }
 
@@ -132,7 +99,32 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
             code: ({ inline, className, children, ...props }: any) => {
               const match = /language-(\w+)/.exec(className || '')
               const language = match ? match[1] : ''
-              const codeText = String(children).replace(/\n$/, '')
+              
+              // 更强大的代码文本提取逻辑
+              let codeText = ''
+              
+              const extractText = (node: any): string => {
+                if (typeof node === 'string') {
+                  return node
+                } else if (typeof node === 'number') {
+                  return String(node)
+                } else if (Array.isArray(node)) {
+                  return node.map(extractText).join('')
+                } else if (node && typeof node === 'object' && node.props && node.props.children) {
+                  return extractText(node.props.children)
+                } else {
+                  return ''
+                }
+              }
+              
+              codeText = extractText(children)
+              
+              // 移除末尾的换行符但保留内部换行
+              codeText = codeText.replace(/\n$/, '')
+              
+              // 调试信息
+              console.log('提取的代码文本长度:', codeText.length)
+              console.log('代码预览:', codeText.substring(0, 50) + (codeText.length > 50 ? '...' : ''))
               
               if (inline) {
                 return (
@@ -211,12 +203,12 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         </ReactMarkdown>
       </div>
       
-      {/* HTML预览模态框 */}
-      <HtmlPreviewModal 
+      {/* 使用新的HTML预览组件 */}
+      <HtmlPreview 
         html={previewHtml}
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
       />
     </>
   )
-} 
+}
